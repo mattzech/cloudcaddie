@@ -139,6 +139,29 @@ export default function ShotTracker() {
           </button>
         </div>
       )}
+      {shots.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold text-green-700 mb-2">Shot History</h3>
+          <ul className="space-y-2">
+            {shots.map((shot, index) => (
+              <li
+              key={index}
+              className="bg-green-100 border border-green-300 rounded-xl p-3 text-sm text-gray-800"
+              >
+                {shot.putts !== undefined ? (
+                  <span className="font-medium">
+                    Hole {shot.hole}: {shot.putts} putt{shot.putts !== 1 ? 's' : ''} ⛳
+                  </span>
+                ) : (
+                  <span className="font-medium">
+                    Hole {shot.hole}, Shot {shot.shot}: {shot.club} → {shot.result}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
