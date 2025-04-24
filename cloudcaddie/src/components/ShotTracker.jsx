@@ -17,6 +17,8 @@ export default function ShotTracker() {
   const [useGeolocation, setUseGeolocation] = useState(false);
   const [hasStartedHole, setHasStartedHole] = useState(false);
   const [teeLocation, setTeeLocation] = useState(null);
+  const [previousLocation, setPreviousLocation] = useState(null);
+
 
 
   const handleClubChange = (club) => {
@@ -28,23 +30,54 @@ export default function ShotTracker() {
   };
 
   const handleShotSubmit = () => {
-    const shotData = {
-      hole: holeNumber,
-      shot: shotNumber,
-      club: currentShot.club,
-      result: currentShot.result
-    };
-
-    const updatedShots = [...shots, shotData];
-    setShots(updatedShots);
-
-    if (currentShot.result === 'On Green') {
-      setIsOnGreen(true);
+    if (useGeolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const { latitude, longitude } = pos.coords;
+        const currentLocation = { lat: latitude, lon: longitude };
+  
+        let distance = null;
+        if (previousLocation) {
+          distance = calculateDistance(previousLocation, currentLocation);
+        }
+  
+        const shotData = {
+          hole: holeNumber,
+          shot: shotNumber,
+          club: currentShot.club,
+          result: currentShot.result,
+          location: currentLocation,
+          distance: distance
+        };
+  
+        setShots((prev) => [...prev, shotData]);
+        setPreviousLocation(currentLocation);
+  
+        if (currentShot.result === 'On Green') {
+          setIsOnGreen(true);
+        } else {
+          setShotNumber((prev) => prev + 1);
+          setCurrentShot({ club: '', result: '' });
+        }
+      });
     } else {
-      setShotNumber((prev) => prev + 1);
-      setCurrentShot({ club: '', result: '' });
+      const shotData = {
+        hole: holeNumber,
+        shot: shotNumber,
+        club: currentShot.club,
+        result: currentShot.result
+      };
+  
+      setShots((prev) => [...prev, shotData]);
+  
+      if (currentShot.result === 'On Green') {
+        setIsOnGreen(true);
+      } else {
+        setShotNumber((prev) => prev + 1);
+        setCurrentShot({ club: '', result: '' });
+      }
     }
   };
+  
 
   const handlePuttsSubmit = () => {
     const puttData = {
@@ -75,41 +108,35 @@ export default function ShotTracker() {
       </p>
 
       {/* Toggle GPS */}
-      <div className="mb-4">
-        <label className="inline-flex items-center space-x-2">
+      <div className="flex items-center space-x-3 mb-4">
+        <span className="text-gray-700 text-lg">GPS Tracking</span>
+        <label className="inline-flex items-center cursor-pointer">
           <input
             type="checkbox"
+            className="sr-only peer"
             checked={useGeolocation}
             onChange={(e) => setUseGeolocation(e.target.checked)}
-            className="form-checkbox h-5 w-5 text-green-600"
           />
-          <span className="text-lg text-gray-700">Enable GPS Tracking</span>
+          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:bg-green-600 relative">
+            <div className="absolute top-0.5 left-0.5 bg-white w-5 h-5 rounded-full transition-all peer-checked:translate-x-full"></div>
+          </div>
         </label>
       </div>
 
       {/* Start Hole Button */}
-      {!hasStartedHole && (
+      {useGeolocation && (
         <button
-          onClick={async () => {
-            if (useGeolocation && navigator.geolocation) {
-              navigator.geolocation.getCurrentPosition(
-                (position) => {
-                  const { latitude, longitude } = position.coords;
-                  setTeeLocation({ lat: latitude, lng: longitude });
-                  setHasStartedHole(true);
-                },
-                (error) => {
-                  console.error('Error fetching location:', error);
-                  alert("Couldn't get location. Check permissions.");
-                }
-              );
-            } else {
-              setHasStartedHole(true); // skip GPS
-            }
+          onClick={() => {
+            navigator.geolocation.getCurrentPosition((pos) => {
+              const { latitude, longitude } = pos.coords;
+              const location = { lat: latitude, lon: longitude };
+              setTeeLocation(location);
+              setPreviousLocation(location);
+            });
           }}
-          className="w-full py-3 px-6 mb-6 bg-blue-600 text-white text-lg rounded-xl shadow hover:bg-blue-700 transition"
+          className="w-full mb-4 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600 transition"
         >
-          Start Hole
+          Start Hole (Set Tee Location)
         </button>
       )}
 
@@ -190,17 +217,25 @@ export default function ShotTracker() {
           <ul className="space-y-2">
             {shots.map((shot, index) => (
               <li
-              key={index}
-              className="bg-green-100 border border-green-300 rounded-xl p-3 text-sm text-gray-800"
+                key={index}
+                className="bg-green-100 border border-green-300 rounded-xl p-3 text-sm text-gray-800"
               >
                 {shot.putts !== undefined ? (
                   <span className="font-medium">
-                    Hole {shot.hole}: {shot.putts} putt{shot.putts !== 1 ? 's' : ''} ⛳
+                    Hole {shot.hole}: {shot.putts} putts
                   </span>
                 ) : (
-                  <span className="font-medium">
-                    Hole {shot.hole}, Shot {shot.shot}: {shot.club} → {shot.result}
-                  </span>
+                  <>
+                    <span className="font-medium">
+                      Hole {shot.hole}, Shot {shot.shot}:
+                    </span>{' '}
+                    {shot.club} → {shot.result}
+                    {shot.distance && (
+                      <span className="ml-2 text-xs text-gray-600">
+                        ({shot.distance} yds)
+                      </span>
+                    )}
+                  </>
                 )}
               </li>
             ))}
@@ -210,3 +245,20 @@ export default function ShotTracker() {
     </div>
   );
 }
+
+function calculateDistance(loc1, loc2) {
+  const R = 6371e3;
+  const φ1 = (loc1.lat * Math.PI) / 180;
+  const φ2 = (loc2.lat * Math.PI) / 180;
+  const Δφ = ((loc2.lat - loc1.lat) * Math.PI) / 180;
+  const Δλ = ((loc2.lon - loc1.lon) * Math.PI) / 180;
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) *
+    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 1.09361); // yards
+}
+
