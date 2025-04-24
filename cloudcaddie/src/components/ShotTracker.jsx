@@ -14,6 +14,10 @@ export default function ShotTracker() {
   const [putts, setPutts] = useState('');
   const [isOnGreen, setIsOnGreen] = useState(false);
   const [shots, setShots] = useState([]);
+  const [useGeolocation, setUseGeolocation] = useState(false);
+  const [hasStartedHole, setHasStartedHole] = useState(false);
+  const [teeLocation, setTeeLocation] = useState(null);
+
 
   const handleClubChange = (club) => {
     setCurrentShot((prev) => ({ ...prev, club }));
@@ -57,6 +61,8 @@ export default function ShotTracker() {
     setCurrentShot({ club: '', result: '' });
     setPutts('');
     setIsOnGreen(false);
+    setHasStartedHole(false);
+    setTeeLocation(null);
   };
 
   return (
@@ -67,6 +73,45 @@ export default function ShotTracker() {
       <p className="text-center text-lg text-gray-600 mb-6">
         Shot {shotNumber}
       </p>
+
+      {/* Toggle GPS */}
+      <div className="mb-4">
+        <label className="inline-flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={useGeolocation}
+            onChange={(e) => setUseGeolocation(e.target.checked)}
+            className="form-checkbox h-5 w-5 text-green-600"
+          />
+          <span className="text-lg text-gray-700">Enable GPS Tracking</span>
+        </label>
+      </div>
+
+      {/* Start Hole Button */}
+      {!hasStartedHole && (
+        <button
+          onClick={async () => {
+            if (useGeolocation && navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (position) => {
+                  const { latitude, longitude } = position.coords;
+                  setTeeLocation({ lat: latitude, lng: longitude });
+                  setHasStartedHole(true);
+                },
+                (error) => {
+                  console.error('Error fetching location:', error);
+                  alert("Couldn't get location. Check permissions.");
+                }
+              );
+            } else {
+              setHasStartedHole(true); // skip GPS
+            }
+          }}
+          className="w-full py-3 px-6 mb-6 bg-blue-600 text-white text-lg rounded-xl shadow hover:bg-blue-700 transition"
+        >
+          Start Hole
+        </button>
+      )}
 
 
       {!isOnGreen ? (
